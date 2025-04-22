@@ -1,0 +1,180 @@
+---
+title: "MP_to_ESS"
+output:
+  md_document: default
+  html_document: default
+date: "2025-04-22"
+---
+
+```{r setup, include=FALSE}
+library(formatR)
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Manifesto Project to European Social Survey
+
+This repository is to help students merge the longitudinal
+Manifesto Project data to the European Social Survey.
+
+```{r,  warning=FALSE}
+library(manifestoR)
+library(tidyverse)
+```
+
+This code starts to download the data directly into R
+
+```{r key }
+mp_setapikey("manifesto_apikey.txt")
+
+```
+Download the data from the manifesto project into R
+what it returns is a dataframe where each row is a country-year-party observation
+so there are rows in every group for all parties in that election year, then the indicator
+ 
+```{r download}
+mpds<-mp_maindataset(version = "current", south_america =FALSE, download_format = NULL, apikey=NULL, cache = TRUE)
+```
+This code just fixes the date so that it is a ‘year’ measurement make the date only 4 digits
+
+```{r fix year}
+mpds<-mpds %>% 
+  mutate(date= (date*.01)) %>% 
+  mutate(date=round(date))
+```
+
+This selects the NWOL variables and filters the dataset to all elections in 1990 or after
+
+Each row is a party in an election in a year 
+
+In the ‘select’ part, you need to add in the other variables in the MP data you are interested in so you can use it later. Here I filter the data so that it only includes parties in countries with the Radical Right party family, that are in the EU and after 1990. 
+
+```{r select vars}
+mpds<-mpds %>% 
+  select(country, countryname, date, party, per601, per501, per608, absseat, totseats, eumember, parfam) %>% 
+  filter(date> 1990 & parfam== 70 & eumember>1)
+```
+
+There is a small issue, Portugal only has one observation of a Nationalist party. All the other countries have at least 2
+
+```{r}
+table(mpds$countryname)
+```
+Lets filter portugal out of the analysis also then
+
+```{r}
+mpds<- mpds %>% filter(countryname != 'Portugal')
+```
+
+This code makes a variable for the share of seats in parlement for each party in each election
+
+```{r}
+mpds$seat_share<-(mpds$absseat/mpds$totseats)*100
+``` 
+
+This code makes a variable for each parties' score on per601 weighted by their share of parliment
+
+```{r}
+mpds$per601_size<-mpds$per601*mpds$seat_share
+mpds$per608_size<-mpds$per608*mpds$seat_share
+mpds$per501_size<-mpds$per501*mpds$seat_share
+
+``` 
+
+The problem with this data is that the election years don't match with the ESS rounds. This means we need to get values for the years when the ESS was fielded. To do this I expand the dataframe so it includes a full sequence of years from 1990-2023
+
+Notice I make it into a new data frame called ‘mpdf1’.  
+
+```{r}
+mpds1<- mpds %>% complete(countryname, date= full_seq(date, period= 1), fill= list(per601_size= NA))
+``` 
+
+Then I interpolate the missing values for each year. Basically this is where the year would fall on a line if you connected the two observed values it falls between.
+
+For this, you will need to install and load the imputeTS package
+
+```{r, warning=FALSE} 
+library(imputeTS)
+
+mpds1<-mpds1 %>% 
+  group_by(countryname) %>% 
+  mutate(per601_size= imputeTS::na_interpolation(per601_size)) %>% 
+  mutate(per608_size= imputeTS::na_interpolation(per608_size)) %>% 
+  mutate(per501_size= imputeTS::na_interpolation(per501_size))
+``` 
+
+
+ 
+Check how many country-year observations you have. This code will show what countries have more than 1 country year observation, but notice it does NOT save over the dataframe. It shows that there are several country-year observations with more than one nationalist party.  
+
+```{r}
+mpds1 %>% group_by(countryname, date) %>% 
+   filter(n()>1)
+```
+
+To do what Micke advised which would be to average the nationalist parties. You would do this by using something like the following code. It makes a new variable called ‘per601_size_mean’, but you can change it to whatever you want.
+
+This code also selects only the country, date, and indicator columns. Then the distinct command removes the duplicate rows.
+
+```{r}
+mpds1<-mpds1%>% group_by(countryname, date) %>% mutate(per601_size_mean= mean(per601_size)) %>%
+  mutate(per608_size_mean= mean(per608_size)) %>% 
+  mutate(per501_size_mean= mean(per501_size)) %>% 
+  select(countryname, date, per601_size_mean, per608_size_mean, per501_size_mean) %>% 
+  distinct()
+``` 
+
+Now we can check again if there are any country years with more than 1 observation:
+
+```{r}
+mpds1 %>% group_by(countryname, date) %>% 
+   filter(n()>1)
+```
+
+Now that you have a tidy data set for the macro variable you will do the demeaning procedure. 
+  
+For this bit of code you will need to install and load the datawizard package
+
+This line of code makes a new dataframe with meaned (between) and demeaned (within) values. 
+
+```{r, warning=FALSE}
+library(datawizard)
+
+mpds_demeaned<- demean(mpds1, select = c("per601_size_mean", "per608_size_mean", "per501_size_mean"), by = "countryname")
+```
+
+
+
+#This next chunk of code is an example of how to check if the country names are spelled the same way
+#and which countries over lap
+#First I cross reference what countries are overlapping
+ 
+mpds_all[mpds_all$countryname %in% ESSDATA$COUNTRY NAME VARIABLE] 
+ 
+##Fix the country names that were not overlapping, this is an example of code for that. I think this is all the 4 that need it. 
+ 
+mpds$countryname<- recode(mpds$countryname, 
+                        'Czech Republic'= 'Czechia',
+                        'Russia'= 'Russian Federation',
+                        'Slovakia'= 'Slovak Republic',
+                        'Turkey'= 'Turkiye'
+              )
+ 
+#Check again to see what countries are overlapping, you should see the ones you fixed show up
+mpds_all[mpds_all$countryname %in% ESSDATA$COUNTRY NAME VARIABLE] 
+ 
+ 
+#Then merge the macrodata back to the ess file
+ess_merged<- left_join(ESSDATA, mpds_all, by= c('COUNTRY NAME VARIABLE'= 'countryname', 'ESSYEAR'='year'))
+ 
+#Then here you will need to match the nationalist party family list with the individual respondents. I don’t have code 
+#for that. Give it some thought but if you get stuck we can talk about it.
+ 
+#Modeling
+#For this you’ll need to install and/or load the lme4 and lmerTest packages
+ 
+m <- lmer(dependent_variable ~ x_between + x_within + (1 + x_within | 
+ 
+#Then I like to report results using the sjPlot package. There is a ton of useful stuff in there. For example if you want a 
+#nice table of the results you can use:
+
+tab_model(m)
