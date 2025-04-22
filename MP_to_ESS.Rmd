@@ -1,8 +1,7 @@
 ---
 title: "MP_to_ESS"
 output:
-  md_document: default
-  html_document: default
+  output: github_document
 date: "2025-04-22"
 ---
 
