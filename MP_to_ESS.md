@@ -5,7 +5,17 @@ MP_to_ESS
 ## Manifesto Project to European Social Survey
 
 This repository is to help students merge the longitudinal Manifesto
-Project data to the European Social Survey.
+Project data to the European Social Survey. It selects the nationalist
+parties, and weights the indicators for national way of life,
+multiculturalism, and environmentalism by the party size. It also
+interpollates the data to make a country-year dataset, then merges the
+data to the European Social Survey.
+
+This code is easily adaptable to other indicators in the MP dataset, but
+it only matches the country year values to the ESS rounds. There are
+much more rigerous ways to match the MP and ESS data, see for example:
+<https://github.com/sophieehill/ess-cumulative> and
+<https://github.com/denis-cohen/ess-election-dates>
 
 ``` r
 library(manifestoR)
@@ -65,15 +75,14 @@ mpds<-mpds %>%
   mutate(date=round(date))
 ```
 
-This selects the NWOL variables and filters the dataset to all elections
+This selects the MP variables and filters the dataset to all elections
 in 1990 or after
 
-Each row is a party in an election in a year
+Each row is a party in an election in a year in a country.
 
-In the ‘select’ part, you need to add in the other variables in the MP
-data you are interested in so you can use it later. Here I filter the
-data so that it only includes parties in countries with the Radical
-Right party family, that are in the EU and after 1990.
+Here I filter the data so that it only includes parties in countries
+with the Nationalist family (parfam 70), that are in the EU and after
+1990.
 
 ``` r
 mpds<-mpds %>% 
@@ -102,7 +111,7 @@ table(mpds$countryname)
     ##         Turkey 
     ##              7
 
-Lets filter portugal out of the analysis also then
+Lets filter Portugal out
 
 ``` r
 mpds<- mpds %>% filter(countryname != 'Portugal')
@@ -185,13 +194,15 @@ mpds1 %>% group_by(countryname, date) %>%
     ## # ℹ 6 more variables: eumember <dbl>, parfam <dbl>, seat_share <dbl>,
     ## #   per601_size <dbl>, per608_size <dbl>, per501_size <dbl>
 
-To do what Micke advised which would be to average the nationalist
-parties. You would do this by using something like the following code.
-It makes a new variable called ‘per601_size_mean’, but you can change it
-to whatever you want.
+It may be advisable to average the nationalist parties. You would do
+this by using something like the following code. It makes a new
+variables, like the one called ‘per601_size_mean’
 
 This code also selects only the country, date, and indicator columns.
 Then the distinct command removes the duplicate rows.
+
+The result are country-year values of the weighted average of those
+values for the nationalist parties in the manifesto project data.
 
 ``` r
 mpds1<-mpds1%>% group_by(countryname, date) %>% mutate(per601_size_mean= mean(per601_size)) %>%
@@ -238,7 +249,7 @@ library(datawizard)
 mpds_demeaned<- demean(mpds1, select = c("per601_size_mean", "per608_size_mean", "per501_size_mean"), by = "countryname")
 ```
 
-Then load the ESS data
+Then load the ESS data and call it ‘ess’
 
 ``` r
 library(readr)
@@ -375,13 +386,19 @@ ess_merged<- left_join(ess, mpds_demeaned, by= c('country_full'= 'countryname', 
 ```
 
 Then here you will need to match the nationalist party family list with
-the individual respondents. I don’t have code for that. Give it some
-thought but if you get stuck we can talk about it.
+the individual respondents.
 
-Modeling For this you’ll need to install and/or load the lme4 and
+Future steps for modeling. We have now set up a macro level dataset that
+is able to model the cross sectional country differences (between) in
+political rhetoric on three indicators as well as how changes in those
+indicators (within) relate to individual level measures in the ESS.
+
+For modeling this you’ll need to install and/or load the lme4 and
 lmerTest packages
 
-m \<- lmer(dependent_variable ~ x_between + x_within + (1 + x_within \|
+Then the formula would look something like this m \<-
+lmer(dependent_variable ~ x_between + x_within + (1 + x_within \|
+country), data = ess_merged)
 
 Then I like to report results using the sjPlot package. There is a ton
 of useful stuff in there. For example if you want a nice table of the
@@ -389,4 +406,5 @@ results you can use:
 
 tab_model(m)
 
-There are also several plot functions in sjPlot.
+There are also several plot functions in sjPlot. Here is a link to the
+package website: <https://strengejacke.github.io/sjPlot/index.html>
