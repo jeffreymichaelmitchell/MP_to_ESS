@@ -238,38 +238,155 @@ library(datawizard)
 mpds_demeaned<- demean(mpds1, select = c("per601_size_mean", "per608_size_mean", "per501_size_mean"), by = "countryname")
 ```
 
-\#This next chunk of code is an example of how to check if the country
-names are spelled the same way \#and which countries over lap \#First I
-cross reference what countries are overlapping
+Then load the ESS data
 
-mpds_all\[mpds_all$countryname %in% ESSDATA$COUNTRY NAME VARIABLE\]
+``` r
+library(readr)
+ess <- read_csv("ESS 1_11.csv")
+```
 
-\##Fix the country names that were not overlapping, this is an example
-of code for that. I think this is all the 4 that need it.
+    ## Rows: 530711 Columns: 1637
+    ## ── Column specification ────────────────────────────────────────────────────────
+    ## Delimiter: ","
+    ## chr    (25): name, proddate, cntry, cntbrth, cntbrtha, cntbrthb, cntbrthc, c...
+    ## dbl  (1575): essround, edition, idno, dweight, pspwght, pweight, anweight, p...
+    ## lgl    (17): prtvtait, prtvtro, prtclait, prtclro, prtmbait, prtmbro, rlgdna...
+    ## dttm   (20): inwds, ainws, ainwe, binwe, cinwe, dinwe, einwe, finwe, ginwe, ...
+    ## 
+    ## ℹ Use `spec()` to retrieve the full column specification for this data.
+    ## ℹ Specify the column types or set `show_col_types = FALSE` to quiet this message.
 
-mpds$countryname<- recode(mpds$countryname, ‘Czech Republic’= ‘Czechia’,
-‘Russia’= ‘Russian Federation’, ‘Slovakia’= ‘Slovak Republic’, ‘Turkey’=
-‘Turkiye’ )
+Load the ess data and call it ‘ess’
 
-\#Check again to see what countries are overlapping, you should see the
-ones you fixed show up
-mpds_all\[mpds_all$countryname %in% ESSDATA$COUNTRY NAME VARIABLE\]
+This next chunk of code makes a variable in the ess data frame with the
+full country names then makes a new year variable corresponding to the
+ess round. Then it will give you a table with the number of country-year
+observations.
 
-\#Then merge the macrodata back to the ess file ess_merged\<-
-left_join(ESSDATA, mpds_all, by= c(‘COUNTRY NAME VARIABLE’=
-‘countryname’, ‘ESSYEAR’=‘year’))
+``` r
+ess$country_full<- recode(ess$cntry, 
+                  "AT"="Austria",
+                  "BE"="Belgium",
+                  "BG"="Bulgaria",
+                  "CH"="Switzerland",
+                  "CY"="Cyprus",
+                  "CZ"="Czech Republic",
+                  "DE"="Germany",
+                  "DK"="Denmark",
+                  "EE"="Estonia",
+                  "ES"="Spain",
+                  "FI"="Finland",
+                  "FR"="France",
+                  "GB"="United Kingdom",
+                  "GR"="Greece",
+                  "HR"="Croatia",
+                  "HU"="Hungary",
+                  "IE"="Ireland",
+                  "IL"="Israel",
+                  "IS"="Iceland",
+                  "IT"="Italy",
+                  "PL"="Poland",
+                  "PT"="Portugal",
+                  "LT"="Lithuania",
+                  "LU"="Luxembourg",
+                  "NL"="Netherlands",
+                  "NO"="Norway",
+                  "RU"="Russia",
+                  "SE"="Sweden",
+                  "SI"="Slovenia",
+                  "SK"="Slovakia",
+                  "TR"="Turkey",
+                  "UA"="Ukraine",
+                  "LV"="Latvia",
+                  "RS"= "Serbia",
+                  "ME"= "Montenegro",
+                  'XK'= 'Kosovo',
+                  'RO'= 'Romania',
+                  'MK'= 'North Macedonia',
+                  'AL'= 'Albania'
 
-\#Then here you will need to match the nationalist party family list
-with the individual respondents. I don’t have code \#for that. Give it
-some thought but if you get stuck we can talk about it.
+)
 
-\#Modeling \#For this you’ll need to install and/or load the lme4 and
+
+#This makes a year variable that corresponds to the ess round
+ess$year<-recode(ess$essround,
+                "1"="2002",
+                "2"="2004",
+                "3"="2006",
+                "4"="2008",
+                "5"="2010",
+                "6"="2012",
+                "7"="2014",
+                "8"="2016",
+                "9"="2018",
+                "10"="2020",
+                "11"="2023")
+
+table(ess$country_full, ess$year)
+```
+
+    ##                  
+    ##                   2002 2004 2006 2008 2010 2012 2014 2016 2018 2020 2023
+    ##   Albania            0    0    0    0    0 1201    0    0    0    0    0
+    ##   Austria         2257 2256 2405    0    0    0 1795 2010 2499 2003 2354
+    ##   Belgium         1899 1778 1798 1760 1704 1869 1769 1766 1767 1341 1594
+    ##   Bulgaria           0    0 1400 2230 2434 2260    0    0 2198 2718    0
+    ##   Croatia            0    0    0 1484 1649    0    0    0 1810 1592 1563
+    ##   Cyprus             0    0  995 1215 1083 1116    0    0  781  875  685
+    ##   Czech Republic  1360 3026    0 2018 2386 2009 2148 2269 2398 2476    0
+    ##   Denmark         1506 1487 1505 1610 1576 1650 1502    0 1572    0    0
+    ##   Estonia            0 1989 1517 1661 1793 2380 2051 2019 1904 1542    0
+    ##   Finland         2000 2022 1896 2195 1878 2197 2087 1925 1755 1577 1563
+    ##   France          1503 1806 1986 2073 1728 1968 1917 2070 2010 1977 1771
+    ##   Germany         2919 2870 2916 2751 3031 2958 3045 2852 2358 8725 2420
+    ##   Greece          2566 2406    0 2072 2715    0    0    0    0 2799 2757
+    ##   Hungary         1685 1498 1518 1544 1561 2014 1698 1614 1661 1849 2118
+    ##   Iceland            0  579    0    0    0  752    0  880  861  903  842
+    ##   Ireland         2046 2286 1800 1764 2576 2628 2390 2757 2216 1770 2017
+    ##   Israel          2499    0    0 2490 2294 2508 2562 2557    0 1308    0
+    ##   Italy           1207    0    0    0    0  960    0 2626 2745 2640 2865
+    ##   Kosovo             0    0    0    0    0 1295    0    0    0    0    0
+    ##   Latvia             0    0    0 1980    0    0    0    0  918 1023    0
+    ##   Lithuania          0    0    0    0 1677 2109 2250 2122 1835 1659 1365
+    ##   Luxembourg      1552 1635    0    0    0    0    0    0    0    0    0
+    ##   Montenegro         0    0    0    0    0    0    0    0 1200 1278    0
+    ##   Netherlands     2364 1881 1889 1778 1829 1845 1919 1681 1673 1470 1695
+    ##   North Macedonia    0    0    0    0    0    0    0    0    0 1429    0
+    ##   Norway          2036 1760 1750 1549 1548 1624 1436 1545 1406 1411 1337
+    ##   Poland          2110 1716 1721 1619 1751 1898 1615 1694 1500 2065 1442
+    ##   Portugal        1511 2052 2222 2367 2150 2151 1265 1270 1055 1838 1373
+    ##   Romania            0    0    0 2146    0    0    0    0    0    0    0
+    ##   Russia             0    0 2437 2512 2595 2484    0 2430    0    0    0
+    ##   Serbia             0    0    0    0    0    0    0    0 2043 1505 1563
+    ##   Slovakia           0 1512 1766 1810 1856 1847    0    0 1083 1418 1442
+    ##   Slovenia        1519 1442 1476 1286 1403 1257 1224 1307 1318 1252 1248
+    ##   Spain           1729 1663 1876 2576 1885 1889 1925 1958 1668 2283 1844
+    ##   Sweden          1999 1948 1927 1830 1497 1847 1791 1551 1539 2287 1230
+    ##   Switzerland     2040 2141 1804 1819 1506 1493 1532 1525 1542 1523 1384
+    ##   Turkey             0 1856    0 2416    0    0    0    0    0    0    0
+    ##   Ukraine            0 2031 2002 1845 1931 2178    0    0    0    0    0
+    ##   United Kingdom  2052 1897 2394 2352 2422 2286 2264 1959 2204 1149 1684
+
+Then merge the macrodata to the ess file
+
+``` r
+ess$year<- as.numeric(ess$year)
+ess_merged<- left_join(ess, mpds_demeaned, by= c('country_full'= 'countryname', 'year'='date'))
+```
+
+Then here you will need to match the nationalist party family list with
+the individual respondents. I don’t have code for that. Give it some
+thought but if you get stuck we can talk about it.
+
+Modeling For this you’ll need to install and/or load the lme4 and
 lmerTest packages
 
 m \<- lmer(dependent_variable ~ x_between + x_within + (1 + x_within \|
 
-\#Then I like to report results using the sjPlot package. There is a ton
-of useful stuff in there. For example if you want a \#nice table of the
+Then I like to report results using the sjPlot package. There is a ton
+of useful stuff in there. For example if you want a nice table of the
 results you can use:
 
 tab_model(m)
+
+There are also several plot functions in sjPlot.
